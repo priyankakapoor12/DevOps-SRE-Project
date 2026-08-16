@@ -1,0 +1,49 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+test-results.xml
+coverage.xml
+
+# Local database
+*.db
+
+# Environment files
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# CI/CD
+Jenkinsfile
+sonar-project.properties
+
+# Documentation
+*.md
+docs/
+
+# Terraform
+terraform/
+
+# Kubernetes
+kubernetes/

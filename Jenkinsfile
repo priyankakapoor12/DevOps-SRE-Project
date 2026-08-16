@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         APP_NAME = 'task-manager'
+        AWS_REGION = 'us-east-1'
+        IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
         SONAR_PROJECT_KEY = 'task-manager'
     }
 
@@ -83,15 +85,35 @@ pipeline {
                 '''
             }
         }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                        docker tag ${APP_NAME}:${IMAGE_TAG} ${APP_NAME}:latest
+                    """
+                }
+            }
+        }
+
+        stage('Security Scan - Container') {
+            steps {
+                sh """
+                    trivy image --format json --output trivy-report.json ${APP_NAME}:${IMAGE_TAG} || true
+                    trivy image --severity HIGH,CRITICAL ${APP_NAME}:${IMAGE_TAG}
+                """
+            }
+        }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: '**/coverage.xml,**/test-results.xml,**/safety-report.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/coverage.xml,**/test-results.xml,**/safety-report.json,**/trivy-report.json', allowEmptyArchive: true
             cleanWs()
         }
         success {
-            echo "Pipeline succeeded! All checks passed."
+            echo "Pipeline succeeded! Image: ${APP_NAME}:${IMAGE_TAG}"
         }
         failure {
             echo "Pipeline failed! Check logs for details."

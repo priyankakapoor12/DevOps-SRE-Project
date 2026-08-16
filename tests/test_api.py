@@ -108,19 +108,19 @@ class TestTaskRetrieval:
 
     def test_filter_tasks_by_completion(self, client):
         """Test filtering tasks by completion status"""
-        # Create completed and pending tasks
-        client.post("/api/tasks/", json={"title": "Completed", "priority": "low"})
-        create_response = client.post("/api/tasks/", json={"title": "Pending", "priority": "low"})
+        # Create two tasks - one will stay pending, one will be marked completed
+        pending_response = client.post("/api/tasks/", json={"title": "Pending Task", "priority": "low"})
+        completed_response = client.post("/api/tasks/", json={"title": "Completed Task", "priority": "low"})
 
-        # Mark first task as completed
-        task_id = create_response.json()["id"]
+        # Mark second task as completed
+        task_id = completed_response.json()["id"]
         client.put(f"/api/tasks/{task_id}", json={"completed": True})
 
-        # Get pending tasks
+        # Get pending tasks (completed=false)
         response = client.get("/api/tasks/?completed=false")
         tasks = response.json()
         assert len(tasks) == 1
-        assert tasks[0]["title"] == "Pending"
+        assert tasks[0]["title"] == "Pending Task"
 
     def test_filter_tasks_by_priority(self, client):
         """Test filtering tasks by priority"""
