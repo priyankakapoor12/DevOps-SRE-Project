@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import logging
+import os
 from .database import init_db
 from .routes import router as task_router
 
@@ -25,6 +27,10 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Mount static files
+static_path = os.path.join(os.path.dirname(__file__), "static")
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
 # Include routers
 app.include_router(task_router)
 
@@ -39,18 +45,8 @@ async def startup_event():
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "Task Manager API",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "docs": "/docs",
-            "health": "/health",
-            "ready": "/ready",
-            "tasks": "/api/tasks"
-        }
-    }
+    """Root endpoint - serve UI"""
+    return FileResponse(os.path.join(static_path, "index.html"))
 
 
 @app.get("/health")

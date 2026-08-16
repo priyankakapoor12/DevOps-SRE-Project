@@ -2,6 +2,14 @@
 
 A cloud-native Task Manager REST API demonstrating modern DevOps and SRE practices.
 
+## 🚀 Live Application
+
+| Service | URL |
+|---------|-----|
+| **Task Manager UI** | http://abce7ba5bb70d4e3eaafff68fc56a22a-995132388.us-east-1.elb.amazonaws.com |
+| **API Documentation** | http://abce7ba5bb70d4e3eaafff68fc56a22a-995132388.us-east-1.elb.amazonaws.com/docs |
+| **Health Check** | http://abce7ba5bb70d4e3eaafff68fc56a22a-995132388.us-east-1.elb.amazonaws.com/health |
+
 ## Architecture
 
 - **Cluster**: `devops-sre-cluster` (AWS EKS)
