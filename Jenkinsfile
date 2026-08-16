@@ -4,9 +4,6 @@ pipeline {
     environment {
         APP_NAME = 'task-manager'
         AWS_REGION = 'us-east-1'
-        AWS_ACCOUNT_ID = credentials('aws-account-id')
-        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REPOSITORY = "${ECR_REGISTRY}/${APP_NAME}"
         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
         SONAR_PROJECT_KEY = 'DevOps-SRE-Project'
         EKS_CLUSTER_NAME = 'devops-sre-cluster'
@@ -114,13 +111,19 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
-                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                    withCredentials([
+                        [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials'],
+                        string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
+                    ]) {
                         sh """
-                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-                            docker tag ${APP_NAME}:${IMAGE_TAG} ${ECR_REPOSITORY}:${IMAGE_TAG}
-                            docker tag ${APP_NAME}:${IMAGE_TAG} ${ECR_REPOSITORY}:latest
-                            docker push ${ECR_REPOSITORY}:${IMAGE_TAG}
-                            docker push ${ECR_REPOSITORY}:latest
+                            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                            ECR_REPOSITORY="\${ECR_REGISTRY}/${APP_NAME}"
+
+                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin \${ECR_REGISTRY}
+                            docker tag ${APP_NAME}:${IMAGE_TAG} \${ECR_REPOSITORY}:${IMAGE_TAG}
+                            docker tag ${APP_NAME}:${IMAGE_TAG} \${ECR_REPOSITORY}:latest
+                            docker push \${ECR_REPOSITORY}:${IMAGE_TAG}
+                            docker push \${ECR_REPOSITORY}:latest
                         """
                     }
                 }
@@ -130,15 +133,21 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 script {
-                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
+                    withCredentials([
+                        [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials'],
+                        string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
+                    ]) {
                         sh """
+                            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                            ECR_REPOSITORY="\${ECR_REGISTRY}/${APP_NAME}"
+
                             aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
 
                             # Create namespace if it doesn't exist
                             kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
                             # Update image tag in deployment
-                            sed -i 's|IMAGE_PLACEHOLDER|${ECR_REPOSITORY}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
+                            sed -i 's|IMAGE_PLACEHOLDER|\${ECR_REPOSITORY}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
 
                             # Apply Kubernetes manifests
                             kubectl apply -f kubernetes/secrets.yaml -n ${K8S_NAMESPACE}
@@ -164,7 +173,7 @@ pipeline {
 
                             # Get the service endpoint
                             echo "Application deployed successfully!"
-                            kubectl get svc ${APP_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+                            kubectl get svc ${APP_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true
                         """
                     }
                 }
@@ -174,13 +183,14 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: '**/coverage.xml,**/test-results.xml,**/safety-report.json,**/trivy-report.json', allowEmptyArchive: true
-            sh 'docker rmi ${APP_NAME}:${IMAGE_TAG} || true'
-            sh 'docker rmi ${ECR_REPOSITORY}:${IMAGE_TAG} || true'
-            cleanWs()
+            node('') {
+                archiveArtifacts artifacts: '**/coverage.xml,**/test-results.xml,**/safety-report.json,**/trivy-report.json', allowEmptyArchive: true
+                sh 'docker rmi ${APP_NAME}:${IMAGE_TAG} || true'
+                cleanWs()
+            }
         }
         success {
-            echo "Pipeline succeeded! Image deployed: ${ECR_REPOSITORY}:${IMAGE_TAG}"
+            echo "Pipeline succeeded! Image deployed successfully."
         }
         failure {
             echo "Pipeline failed! Check logs for details."
