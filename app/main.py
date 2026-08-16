@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+from .database import init_db
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -21,6 +22,14 @@ app.add_middleware(
 # Basic logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup"""
+    logger.info("Initializing database...")
+    init_db()
+    logger.info("Database initialized successfully")
 
 
 @app.get("/")
