@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import logging
 from .database import init_db
+from .routes import router as task_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -23,6 +25,9 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Include routers
+app.include_router(task_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -38,7 +43,13 @@ async def root():
     return {
         "message": "Task Manager API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "endpoints": {
+            "docs": "/docs",
+            "health": "/health",
+            "ready": "/ready",
+            "tasks": "/api/tasks"
+        }
     }
 
 
