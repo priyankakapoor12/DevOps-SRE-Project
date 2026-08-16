@@ -2,6 +2,13 @@
 
 A cloud-native Task Manager REST API demonstrating modern DevOps and SRE practices.
 
+## Live URLs
+
+| Service | URL |
+|---------|-----|
+| **Jenkins CI/CD** | http://54.81.96.179:8080 |
+| **SonarQube** | http://54.81.96.179:9000 |
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -78,7 +85,7 @@ A cloud-native Task Manager REST API demonstrating modern DevOps and SRE practic
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/priyankakapoor12/DevOps-SRE-Project.git
 cd Submission
 
 # Create virtual environment
@@ -157,36 +164,15 @@ terraform apply -var="db_username=admin" -var="db_password=<password>"
 The application is deployed with:
 
 - **2 replicas** (minimum) for high availability
-- **Horizontal Pod Autoscaler** (2-10 pods based on CPU/memory)
+- **Horizontal Pod Autoscaler** (2-3 pods based on CPU/memory)
 - **Health checks** (liveness and readiness probes)
 - **Resource limits** (CPU: 500m, Memory: 256Mi)
 - **LoadBalancer service** for external access
 
-## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `sqlite:///./tasks.db` |
-| `AWS_REGION` | AWS region for CloudWatch | `us-east-1` |
-| `LOG_LEVEL` | Logging level | `INFO` |
 
-## Security
 
-- Non-root user in Docker container
-- Container vulnerability scanning with Trivy
-- Dependency scanning with Safety
-- Code quality gates with SonarQube
-- Secrets managed via Kubernetes secrets
-- Database encryption at rest (RDS)
 
-## Challenges & Solutions
-
-| Challenge | Solution |
-|-----------|----------|
-| Python 3.13 + pydantic build failure | Updated to `pydantic>=2.9.0` for compatibility |
-| psycopg3 dialect error with SQLAlchemy | Added dialect conversion `postgresql://` → `postgresql+psycopg://` |
-| Jenkins credential context errors | Moved credentials to `withCredentials` block |
-| SonarQube Quality Gate timeout | Configured webhook and increased timeout |
 
 ## License
 
