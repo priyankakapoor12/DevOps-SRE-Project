@@ -74,5 +74,5 @@ variable "db_password" {
   description = "Password for RDS PostgreSQL database"
   type        = string
   sensitive   = true
-  default     = "TaskManager123!"
+  # No default - must be provided via TF_VAR_db_password, -var flag, or terraform.tfvars (not in Git)
 }

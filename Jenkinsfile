@@ -142,26 +142,33 @@ pipeline {
 
         stage('Deploy to EKS') {
             steps {
-                script {
-                    sh """
-                        # Update kubeconfig
-                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                withCredentials([string(credentialsId: 'database-url', variable: 'DATABASE_URL')]) {
+                    script {
+                        sh """
+                            # Update kubeconfig
+                            aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
 
-                        # Create namespace if it doesn't exist
-                        kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                            # Create namespace if it doesn't exist
+                            kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
-                        # Update image tag in deployment
-                        sed -i 's|IMAGE_PLACEHOLDER|${ECR_REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
+                            # Create/update secrets from Jenkins credentials (not from Git)
+                            kubectl create secret generic task-manager-secrets \
+                                --from-literal=database-url="${DATABASE_URL}" \
+                                -n ${K8S_NAMESPACE} \
+                                --dry-run=client -o yaml | kubectl apply -f -
 
-                        # Apply Kubernetes manifests
-                        kubectl apply -f kubernetes/secrets.yaml -n ${K8S_NAMESPACE}
-                        kubectl apply -f kubernetes/deployment.yaml -n ${K8S_NAMESPACE}
-                        kubectl apply -f kubernetes/service.yaml -n ${K8S_NAMESPACE}
-                        kubectl apply -f kubernetes/hpa.yaml -n ${K8S_NAMESPACE}
+                            # Update image tag in deployment
+                            sed -i 's|IMAGE_PLACEHOLDER|${ECR_REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
 
-                        # Wait for deployment to complete
-                        kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
-                    """
+                            # Apply Kubernetes manifests (skip secrets.yaml - created above)
+                            kubectl apply -f kubernetes/deployment.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f kubernetes/service.yaml -n ${K8S_NAMESPACE}
+                            kubectl apply -f kubernetes/hpa.yaml -n ${K8S_NAMESPACE}
+
+                            # Wait for deployment to complete
+                            kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                        """
+                    }
                 }
             }
         }
