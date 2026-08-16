@@ -2,12 +2,6 @@
 
 A cloud-native Task Manager REST API demonstrating modern DevOps and SRE practices.
 
-## Live URLs
-
-| Service | URL |
-|---------|-----|
-| **Jenkins CI/CD** | http://54.81.96.179:8080 |
-| **SonarQube** | http://54.81.96.179:9000 |
 
 ## Tech Stack
 
