@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         APP_NAME = 'devops-sre-task-manager'
+        K8S_DEPLOYMENT_NAME = 'task-manager'
         AWS_REGION = 'us-east-1'
         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
         SONAR_PROJECT_KEY = 'DevOps-SRE-Project'
@@ -166,7 +167,7 @@ pipeline {
                             kubectl apply -f kubernetes/hpa.yaml -n ${K8S_NAMESPACE}
 
                             # Wait for deployment to complete
-                            kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                            kubectl rollout status deployment/${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=300s
                         """
                     }
                 }
@@ -177,12 +178,12 @@ pipeline {
             steps {
                 script {
                     sh """
-                        kubectl get pods -n ${K8S_NAMESPACE} -l app=${APP_NAME}
+                        kubectl get pods -n ${K8S_NAMESPACE} -l app=${K8S_DEPLOYMENT_NAME}
                         kubectl get svc -n ${K8S_NAMESPACE}
 
                         # Get the service endpoint
                         echo "Application deployed successfully!"
-                        kubectl get svc ${APP_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true
+                        kubectl get svc ${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true
                     """
                 }
             }
