@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = 'task-manager'
+        APP_NAME = 'devops-sre-task-manager'
         AWS_REGION = 'us-east-1'
         IMAGE_TAG = "${BUILD_NUMBER}-${GIT_COMMIT.take(7)}"
         SONAR_PROJECT_KEY = 'DevOps-SRE-Project'

@@ -1,6 +1,6 @@
 # ECR Repository
 resource "aws_ecr_repository" "task_manager" {
-  name                 = "task-manager"
+  name                 = "devops-sre-task-manager"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -12,7 +12,7 @@ resource "aws_ecr_repository" "task_manager" {
   }
 
   tags = {
-    Name = "task-manager"
+    Name = "devops-sre-task-manager"
   }
 }
 

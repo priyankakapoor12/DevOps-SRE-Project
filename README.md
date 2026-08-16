@@ -2,6 +2,12 @@
 
 A cloud-native Task Manager REST API demonstrating modern DevOps and SRE practices.
 
+## Architecture
+
+- **Cluster**: `devops-sre-cluster` (AWS EKS)
+- **Container Registry**: `devops-sre-task-manager` (AWS ECR)
+- **Database**: PostgreSQL (AWS RDS)
+- **Region**: us-east-1
 
 ## Tech Stack
 
