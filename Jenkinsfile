@@ -14,7 +14,17 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "Building commit: ${GIT_COMMIT}"
+                script {
+                    echo "Building commit: ${GIT_COMMIT}"
+
+                    // Get AWS Account ID dynamically using IAM instance role
+                    env.ECR_REGISTRY = sh(
+                        script: 'aws sts get-caller-identity --query Account --output text',
+                        returnStdout: true
+                    ).trim() + ".dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+                    echo "ECR Registry: ${env.ECR_REGISTRY}"
+                }
             }
         }
 
@@ -111,21 +121,21 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
-                    withCredentials([
-                        [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials'],
-                        string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
-                    ]) {
-                        sh """
-                            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                            ECR_REPOSITORY="\${ECR_REGISTRY}/${APP_NAME}"
+                    sh """
+                        # Login to ECR
+                        aws ecr get-login-password --region ${AWS_REGION} | \
+                            docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-                            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin \${ECR_REGISTRY}
-                            docker tag ${APP_NAME}:${IMAGE_TAG} \${ECR_REPOSITORY}:${IMAGE_TAG}
-                            docker tag ${APP_NAME}:${IMAGE_TAG} \${ECR_REPOSITORY}:latest
-                            docker push \${ECR_REPOSITORY}:${IMAGE_TAG}
-                            docker push \${ECR_REPOSITORY}:latest
-                        """
-                    }
+                        # Tag images
+                        docker tag ${APP_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${APP_NAME}:${IMAGE_TAG}
+                        docker tag ${APP_NAME}:${IMAGE_TAG} ${ECR_REGISTRY}/${APP_NAME}:latest
+
+                        # Push images
+                        docker push ${ECR_REGISTRY}/${APP_NAME}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}/${APP_NAME}:latest
+
+                        echo "Images pushed successfully to ECR"
+                    """
                 }
             }
         }
@@ -133,32 +143,25 @@ pipeline {
         stage('Deploy to EKS') {
             steps {
                 script {
-                    withCredentials([
-                        [$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials'],
-                        string(credentialsId: 'aws-account-id', variable: 'AWS_ACCOUNT_ID')
-                    ]) {
-                        sh """
-                            ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-                            ECR_REPOSITORY="\${ECR_REGISTRY}/${APP_NAME}"
+                    sh """
+                        # Update kubeconfig
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
 
-                            aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                        # Create namespace if it doesn't exist
+                        kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
-                            # Create namespace if it doesn't exist
-                            kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        # Update image tag in deployment
+                        sed -i 's|IMAGE_PLACEHOLDER|${ECR_REGISTRY}/${APP_NAME}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
 
-                            # Update image tag in deployment
-                            sed -i 's|IMAGE_PLACEHOLDER|\${ECR_REPOSITORY}:${IMAGE_TAG}|g' kubernetes/deployment.yaml
+                        # Apply Kubernetes manifests
+                        kubectl apply -f kubernetes/secrets.yaml -n ${K8S_NAMESPACE}
+                        kubectl apply -f kubernetes/deployment.yaml -n ${K8S_NAMESPACE}
+                        kubectl apply -f kubernetes/service.yaml -n ${K8S_NAMESPACE}
+                        kubectl apply -f kubernetes/hpa.yaml -n ${K8S_NAMESPACE}
 
-                            # Apply Kubernetes manifests
-                            kubectl apply -f kubernetes/secrets.yaml -n ${K8S_NAMESPACE}
-                            kubectl apply -f kubernetes/deployment.yaml -n ${K8S_NAMESPACE}
-                            kubectl apply -f kubernetes/service.yaml -n ${K8S_NAMESPACE}
-                            kubectl apply -f kubernetes/hpa.yaml -n ${K8S_NAMESPACE}
-
-                            # Wait for deployment to complete
-                            kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
-                        """
-                    }
+                        # Wait for deployment to complete
+                        kubectl rollout status deployment/${APP_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                    """
                 }
             }
         }
@@ -166,16 +169,14 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 script {
-                    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-credentials']]) {
-                        sh """
-                            kubectl get pods -n ${K8S_NAMESPACE} -l app=${APP_NAME}
-                            kubectl get svc -n ${K8S_NAMESPACE}
+                    sh """
+                        kubectl get pods -n ${K8S_NAMESPACE} -l app=${APP_NAME}
+                        kubectl get svc -n ${K8S_NAMESPACE}
 
-                            # Get the service endpoint
-                            echo "Application deployed successfully!"
-                            kubectl get svc ${APP_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true
-                        """
-                    }
+                        # Get the service endpoint
+                        echo "Application deployed successfully!"
+                        kubectl get svc ${APP_NAME} -n ${K8S_NAMESPACE} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true
+                    """
                 }
             }
         }
