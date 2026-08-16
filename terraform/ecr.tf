@@ -1,6 +1,6 @@
 # ECR Repository
-resource "aws_ecr_repository" "app" {
-  name                 = var.app_name
+resource "aws_ecr_repository" "task_manager" {
+  name                 = "task-manager"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -12,13 +12,13 @@ resource "aws_ecr_repository" "app" {
   }
 
   tags = {
-    Name = "${var.app_name}-ecr"
+    Name = "task-manager"
   }
 }
 
 # ECR Lifecycle Policy
-resource "aws_ecr_lifecycle_policy" "app" {
-  repository = aws_ecr_repository.app.name
+resource "aws_ecr_lifecycle_policy" "task_manager" {
+  repository = aws_ecr_repository.task_manager.name
 
   policy = jsonencode({
     rules = [
@@ -37,7 +37,7 @@ resource "aws_ecr_lifecycle_policy" "app" {
       },
       {
         rulePriority = 2
-        description  = "Remove untagged images older than 7 days"
+        description  = "Remove untagged images after 7 days"
         selection = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"

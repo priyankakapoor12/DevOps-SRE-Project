@@ -1,25 +1,17 @@
-# RDS Subnet Group
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.app_name}-db-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
+# RDS PostgreSQL for Task Manager Application
 
-  tags = {
-    Name = "${var.app_name}-db-subnet-group"
-  }
-}
-
-# RDS Security Group
+# Security Group for RDS
 resource "aws_security_group" "rds" {
-  name        = "${var.app_name}-rds-sg"
-  description = "Security group for RDS"
-  vpc_id      = aws_vpc.main.id
+  name        = "${var.cluster_name}-rds-sg"
+  description = "Security group for RDS PostgreSQL"
+  vpc_id      = module.vpc.vpc_id
 
   ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_cluster.id]
-    description     = "Allow PostgreSQL from EKS"
+    description = "PostgreSQL from VPC"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [module.vpc.vpc_cidr_block]
   }
 
   egress {
@@ -30,66 +22,86 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name = "${var.app_name}-rds-sg"
+    Name = "${var.cluster_name}-rds-sg"
   }
 }
 
-# RDS Instance
-resource "aws_db_instance" "main" {
-  identifier     = "${var.app_name}-db"
+# DB Subnet Group (uses private subnets)
+resource "aws_db_subnet_group" "main" {
+  name       = "${var.cluster_name}-db-subnet"
+  subnet_ids = module.vpc.private_subnets
+
+  tags = {
+    Name = "${var.cluster_name}-db-subnet"
+  }
+}
+
+# RDS PostgreSQL Instance
+resource "aws_db_instance" "taskmanager" {
+  identifier     = "${var.cluster_name}-db"
   engine         = "postgres"
-  engine_version = "15.4"
-  instance_class = var.db_instance_class
+  engine_version = "15"
+  instance_class = "db.t3.micro"
 
   allocated_storage     = 20
   max_allocated_storage = 100
   storage_type          = "gp3"
   storage_encrypted     = true
 
-  db_name  = var.db_name
-  username = var.db_username
+  db_name  = "taskmanager"
+  username = "taskadmin"
   password = var.db_password
 
-  db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
+  db_subnet_group_name   = aws_db_subnet_group.main.name
 
+  # Backup configuration
   backup_retention_period = 7
   backup_window          = "03:00-04:00"
   maintenance_window     = "Mon:04:00-Mon:05:00"
 
-  multi_az               = false
-  publicly_accessible    = false
-  skip_final_snapshot    = true
-  deletion_protection    = false
+  # For demo - set to false/true for production
+  skip_final_snapshot = true
+  deletion_protection = false
 
+  # Performance Insights (free tier)
   performance_insights_enabled = true
-  monitoring_interval         = 60
-  monitoring_role_arn         = aws_iam_role.rds_monitoring.arn
+  performance_insights_retention_period = 7
 
   tags = {
-    Name = "${var.app_name}-db"
+    Name        = "${var.cluster_name}-db"
+    Environment = "demo"
   }
 }
 
-# RDS Enhanced Monitoring Role
-resource "aws_iam_role" "rds_monitoring" {
-  name = "${var.app_name}-rds-monitoring-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "monitoring.rds.amazonaws.com"
-        }
-      }
-    ]
-  })
+# Outputs
+output "rds_endpoint" {
+  description = "RDS endpoint"
+  value       = aws_db_instance.taskmanager.endpoint
 }
 
-resource "aws_iam_role_policy_attachment" "rds_monitoring" {
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
-  role       = aws_iam_role.rds_monitoring.name
+output "rds_hostname" {
+  description = "RDS hostname (without port)"
+  value       = aws_db_instance.taskmanager.address
+}
+
+output "rds_port" {
+  description = "RDS port"
+  value       = aws_db_instance.taskmanager.port
+}
+
+output "rds_database_name" {
+  description = "Database name"
+  value       = aws_db_instance.taskmanager.db_name
+}
+
+output "rds_username" {
+  description = "Database username"
+  value       = aws_db_instance.taskmanager.username
+}
+
+output "database_url" {
+  description = "Full DATABASE_URL for application"
+  value       = "postgresql://${aws_db_instance.taskmanager.username}:${var.db_password}@${aws_db_instance.taskmanager.endpoint}/${aws_db_instance.taskmanager.db_name}"
+  sensitive   = true
 }
